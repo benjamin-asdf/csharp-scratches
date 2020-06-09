@@ -38,7 +38,18 @@ public static class Programm {
         //     }
         // }
 
-        var input = File.ReadAllLines("/home/benj/repos/unity-sample/UnitySample/Assets/Editor/difftoolspecfile");
+        // var str = "mee ld";
+
+        // foreach (Match match in Regex.Matches(str,@"([\w\s]+)")) {
+        //     foreach (var g in match.Groups) {
+        //         Console.WriteLine(g);
+        //     }
+        // }
+
+
+        // return;
+
+        var input = File.ReadAllLines("/home/benj/idlegame/IdleGame/Assets/Editor/AssetTools/difftoolspecfile.txt");
 
 
         var programName = "";
@@ -47,7 +58,7 @@ public static class Programm {
         foreach (var line in File.ReadAllLines("/home/benj/repos/unity-sample/UnitySample/Assets/Editor/difftoolspecfile")) {
             if (line.StartsWith("#")) continue;
 
-            var matches = Regex.Matches(line,@"^\* use ""(.*)""");
+            var matches = Regex.Matches(line,@"^\* use ""([\w\s]+)""");
             if (matches.Count == 1) {
 
                 programName = matches[0].Groups[1].ToString();
