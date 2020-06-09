@@ -18,12 +18,16 @@ public static class Programm {
     public static void Main(string[] args) {
         Console.WriteLine("==== ParseGameObj ====\n");
 
-        var lines = new List<string>();
+
+
+
+
+        var inputLines = new List<string>();
         foreach (var line in File.ReadAllLines("file")) {
-            lines.Add(line);
+            inputLines.Add(line);
         }
 
-        var gos = ParsePrefab(lines);
+        var gos = ParsePrefab(inputLines);
 
         var allGoIds = new HashSet<string>();
         var allFileIds = new HashSet<string>();
@@ -33,11 +37,24 @@ public static class Programm {
             allGoIds.Add(go.fileId);
             allFileIds.Add(go.fileId);
             foreach (var compFileId in go.compFileIds) {
-                allFileIds.Add(compFileId.id);
+                allFileIds.Add(compFileId);
             }
+
+
+            // go.compGoRefs
+
+
         }
 
         // assign new file ids to broken go and comp ids
+
+
+
+
+
+
+
+        return;
 
         var compFileIdsInGo = new HashSet<string>();
         var newFileIdsInGo = new List<string>();
@@ -47,25 +64,27 @@ public static class Programm {
                 // replace line with a new file id of our own.
                 var newFileId = newUniqueFileId();
                 addFileIdToLookups(newFileId);
-                InsertFileId(lines,go.idLine,newFileId);
+                InsertFileId(go.lines,0,newFileId);
             }
 
             compFileIdsInGo.Clear();
             newFileIdsInGo.Clear();
             foreach (var compFileId in go.compFileIds) {
-                compFileIdsInGo.Add(compFileId.id);
-                if (String.IsNullOrEmpty(compFileId.id)) {
+                compFileIdsInGo.Add(compFileId);
+
+                if (String.IsNullOrEmpty(compFileId)) {
                     var newFileId = newUniqueFileId();
                     addFileIdToLookups(newFileId);
-                    InsertFileId(lines,compFileId.globalLine,newFileId);
-                    newFileIdsInGo.Add(newFileId);
+
+                    // InsertFileId(inputLines,compFileId.globalLine,newFileId);
+                    // newFileIdsInGo.Add(newFileId);
                 }
             }
 
             var brokenCompRefs = new List<(int line,string id)>();
             foreach (var compRef in go.compRefs) {
-                if (String.IsNullOrEmpty(compRef.id) || !compFileIdsInGo.Contains(compRef.id)) {
-                    brokenCompRefs.Add(compRef);
+                if (String.IsNullOrEmpty(compRef) || !compFileIdsInGo.Contains(compRef)) {
+                    // brokenCompRefs.Add(compRef);
                 }
             }
 
@@ -75,7 +94,7 @@ public static class Programm {
                 foreach (var brokenCompRef in brokenCompRefs) {
                     var replaceId = newFileIdsInGo[idx];
                     // ReplaceLine(lines, , string newStr);
-                    ReplaceLine(lines,brokenCompRef.line,$"  - component: {{fileID: {replaceId}}}");
+                    ReplaceLine(inputLines,brokenCompRef.line,$"  - component: {{fileID: {replaceId}}}");
                     idx++;
                 }
             }
@@ -95,12 +114,17 @@ public static class Programm {
 
 
 
-        foreach (var l in lines) {
+        foreach (var l in inputLines) {
             Console.WriteLine(l);
         }
 
 
-        return;
+        // actually, the moment we change something, we want to renew all the comp refs on the gameobject
+
+
+
+
+
         foreach (var go in gos) {
             Console.WriteLine($"go: {go.fileId}");
 
@@ -113,9 +137,9 @@ public static class Programm {
 
             foreach (var compRef in go.compRefs) {
 
-                if (String.IsNullOrEmpty(compRef.id)) {
+                // if (String.IsNullOrEmpty(compRef.id)) {
 
-                }
+                // }
             }
 
             // any dangling prefab transfrom refs -> err out
@@ -162,13 +186,14 @@ public static class Programm {
 
     class ParsedGo {
         public string fileId;
-        public int idLine;
         public string name;
-        public List<(int globalLine,string id)> compFileIds = new List<(int globalLine,string id)>();
-        public List<(int globalLine,string id)> compRefs = new List<(int globalLine,string id)>();
-        public List<(int globalLine,string id)> transformChildRefs = new List<(int globalLine,string id)>();
-        public List<(int globalLine,string id)> prefabTransformRefs = new List<(int globalLine,string id)>();
-        public List<(int globalLine,string id)> compGoRefs = new List<(int globalLine,string id)>();
+        public List<string> compFileIds = new List<string>();
+        public List<string> compRefs = new List<string>();
+        public List<string> transformChildRefs = new List<string>();
+        public List<string> prefabTransformRefs = new List<string>();
+        public List<string> compGoRefs = new List<string>();
+        public List<string> lines = new List<string>();
+        public int compRefPartStart;
     }
 
     // static Regex fileIdRegex =
@@ -189,35 +214,37 @@ public static class Programm {
 
         var x = 0;
         foreach (var line in lines) {
-
             if (line.StartsWith("--- !u!1 &")) {
                 if (currGo != null) {
                     gos.Add(currGo);
                 }
+                x = 0;
                 currGo = new ParsedGo();
                 inFrontOfComps = true;
                 var fileId = line.Substring(line.IndexOf("&") + 1);
                 Console.WriteLine($"new go, fileId: {fileId}");
                 currGo.fileId = fileId;
-                currGo.idLine = x;
             } else if (inFrontOfComps && goNameRegex.Match(line).Success) {
                 currGo.name = goNameRegex.Match(line).Groups[1].ToString();
 
             } else if (inFrontOfComps && compBeginningRegex.Match(line).Success) {
                 inFrontOfComps = false;
-                currGo.compFileIds.Add((x,fileIdForLine(line)));
+                currGo.compFileIds.Add(fileIdForLine(line));
 
             } else if (compRefRegex.Match(line).Success) {
-                currGo.compRefs.Add((x,compRefRegex.Match(line).Groups[1].ToString()));
+                if (currGo.compRefPartStart == 0) {
+                    Console.WriteLine($"setting comp ref part start to {x}");
+                    currGo.compRefPartStart = x;
+                }
+                currGo.compRefs.Add(compRefRegex.Match(line).Groups[1].ToString());
             }
             else if (transformChildRegex.Match(line).Success) {
-                currGo.transformChildRefs.Add((x,transformChildRegex.Match(line).Groups[1].ToString()));
+                currGo.transformChildRefs.Add(transformChildRegex.Match(line).Groups[1].ToString());
 
             } else if (prefabTransformRegex.Match(line).Success) {
-                currGo.prefabTransformRefs.Add((x,prefabTransformRegex.Match(line).Groups[1].ToString()));
+                currGo.prefabTransformRefs.Add(prefabTransformRegex.Match(line).Groups[1].ToString());
 
             }
-
             x++;
         }
 
@@ -318,3 +345,13 @@ public static class Programm {
 
 // Console.WriteLine(Regex.Matches(input,pattern).First().Success);
 // Console.WriteLine(Regex.Matches(input,pattern).Count > 0);
+
+// string insertTag(string insertion) => $"~Insert:{insertion}:";
+// var input = "best\n lul\n hi\n";
+// input = input.Replace(" lul", " lul" + insertTag("component 1"));
+// input = input.Replace(" lul", " lul" + insertTag("component 2"));
+
+
+// input = Regex.Replace(input,@"(.*)~Insert:(.*):(.*)","$1,$2,$3");
+// Console.WriteLine(input);
+// return;
