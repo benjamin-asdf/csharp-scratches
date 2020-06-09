@@ -136,21 +136,8 @@ public static class Programm {
             return fileIdNum.ToString();
         }
 
-
-
-
-
-
     }
 
-    // static HashSet<string>  ();
-
-    const string nullKey = "null";
-    static int nullGoIdx = 0;
-    static string NextGoNullAddr() => NullAddr(nullGoIdx++);
-    static string NullAddr(int idx) => $"{nullKey}|{idx}";
-
-    static Dictionary<string,ParsedGo> gameObjects = new Dictionary<string,ParsedGo>();
 
     class ParsedGo {
         public readonly string fileId;
