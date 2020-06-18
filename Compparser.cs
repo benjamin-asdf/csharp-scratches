@@ -61,7 +61,18 @@ public class NoFixAvaivableException : Exception {
 
     class ParsedGameObject : ParsedObj {
         public string name;
-        public List<CompRef> compRefs;
+        public List<CompRef> compRefs = new List<CompRef>();
+        // dangling refs?
+        public HashSet<string> danglingCompRefs;
+        public HashSet<string> addedCompRefs;
+        public int compRefsStart;
+        public string GetFirstDanglingId() {
+            foreach (var item in danglingCompRefs) {
+                return item;
+            }
+            return "";
+        }
+
     }
 
     // future maybe,
@@ -73,6 +84,8 @@ public class NoFixAvaivableException : Exception {
 
     class ParsedComp : ParsedObj {
         public (int origLine, string goRef) goRef;
+        /// Seems like always the go we are supported to be attached to
+        public string enclosingGo;
     }
 
     class StrippedObj : ParsedObj {
@@ -83,7 +96,7 @@ public class NoFixAvaivableException : Exception {
     class ParsedPrefabInstance : ParsedObj {
         // guid
         // father
-        public List<(int origLine, string transformRef)> transformRefs = new List<(int origLine, string transformRef)>();
+        public List<(int origLine, string value)> transformRefs = new List<(int origLine, string value)>();
     }
 
     struct CompRef {
@@ -95,13 +108,20 @@ public class NoFixAvaivableException : Exception {
     static List<ParsedComp> allComps;
     static List<ParsedObj> allObjs;
     static List<ParsedGameObject> allGameObjs;
+    //static List<ParsePr> allGameObjs;
 
 
     static int currLine = 0;
 
+    static HashSet<ParsedObj> dirtyGos;
+    static HashSet<ParsedObj> DirtyGos => dirtyGos ?? (dirtyGos = new HashSet<ParsedObj>());
+
     public static void CheckPrefab(string inputPath) {
 
         allComps = new List<ParsedComp>();
+        var allPrefabInstances = new List<ParsedPrefabInstance>();
+        var allFileIds = new HashSet<string>();
+        var goLookup = new Dictionary<string,ParsedGameObject>();
 
         var isDirty = false;
         var inputLines = new List<string>();
@@ -113,21 +133,87 @@ public class NoFixAvaivableException : Exception {
 
 
         foreach (var item in allObjs) {
-            Console.WriteLine($"{item.GetType().Name} - {item.id.id}");
+            Console.WriteLine($"{item.GetType().Name} - {item.type} - {item.id.id}");
+
+            if (item is ParsedPrefabInstance prefabInstance) {
+
+                if (String.IsNullOrEmpty(prefabInstance.id.id)) {
+                    throw new NoFixAvaivableException($"The id for a prefab instance at line {prefabInstance.id.origLine} is broken.");
+
+                    // NOTE: fix involves checking all prefab refs for 'stripped' objects.
+                    // not sure if the stripped objects are guaranteed to show up below the prefabInstance syntax (I guess so though)
+                }
+
+
+                allPrefabInstances.Add(prefabInstance);
+
+            }
+
+            if (item is StrippedObj strippedObj
+                && String.IsNullOrEmpty(strippedObj.id.id)) {
+                throw new NoFixAvaivableException($"The id for a stripped Object at line {strippedObj.id.origLine} is broken.");
+
+                // NOTE: fix would involve checking all refs,
+                // e.g. script refs for monos
+                // lots of cases I guess
+
+            }
+
+
+            // NOTE if we where more advanced, we would handle transforms special
+
+            allFileIds.Add(item.id.id);
+            if (item is ParsedGameObject go) {
+
+                if (String.IsNullOrEmpty(go.id.id)) {
+                    // NOTE fix might not be that hard; Check all go refs in the file and there might be a dangling one
+                    throw new NoFixAvaivableException($"Broken go id on line {go.id.origLine}. Fix not supported yet.");
+                }
+
+                goLookup.Add(go.id.id,go);
+            }
+
+            if (item is ParsedComp comp) {
+                allComps.Add(comp);
+            }
+
+
+
+        }
+
+        foreach (var go in goLookup.Values) {
+            foreach (var compRef in go.compRefs) {
+                if (!allFileIds.Contains(compRef.id)) {
+                    if (go.danglingCompRefs == null) {
+                        go.danglingCompRefs = new HashSet<string>();
+                    }
+                    go.danglingCompRefs.Add(compRef.id);
+                }
+            }
+
         }
 
 
-        return;
 
-
-        var goLookup = new Dictionary<string,ParsedGameObject>();
+        // needed to fill lookups first
 
         // these are the known comps that are subscribing to Key gameobject id
         // var goIdRefs = new Dictionary<string,List<ParsedComp>>();
         var goIdRefs = new Dictionary<string,List<string>>();
 
-        foreach (var go in allGameObjs) {
-            goLookup.Add(go.id.id,go);
+        foreach (var prefabInstance in allPrefabInstances) {
+
+            foreach (var transformRef in prefabInstance.transformRefs) {
+
+                if (transformRef.value != "0" &&
+                    (String.IsNullOrEmpty(transformRef.value) || !allFileIds.Contains(transformRef.value))) {
+                    throw new NoFixAvaivableException($"{inputPath} has a broken prefab transform ref. At line {transformRef.origLine}, you can try to figure out to which transform it should belong and put the file id.");
+                }
+
+
+            }
+
+
         }
 
 
@@ -155,7 +241,6 @@ public class NoFixAvaivableException : Exception {
 
             }
 
-
             if (idBroken) {
                 if (comp.type == UnityYamlClassId.Transform || comp.type == UnityYamlClassId.RectTransform) {
                     throw new NoFixAvaivableException("Encountered broken file id on a transform. Fix would be complex.");
@@ -170,16 +255,40 @@ public class NoFixAvaivableException : Exception {
 
                     // fix available.
 
-                    isDirty = true;
-                    InsertFileId(inputLines,comp.id.origLine,foundGo.id.id);
+                    // we could add here though
+                    // null implies count == 0.
+                    if (foundGo.danglingCompRefs == null) {
+
+
+                        // throw new NoFixAvaivableException($"Broken file id on line {comp.id.origLine}. Connected to game object");
+
+                        if (foundGo.addedCompRefs == null) {
+                            foundGo.addedCompRefs = new HashSet<string>();
+
+                        }
+
+                        foundGo.addedCompRefs.Add(newUniqueFileId());
+                        DirtyGos.Add(foundGo);
+
+                    } else if (foundGo.danglingCompRefs.Count == 1) {
+
+                        InsertFileId(inputLines,comp.id.origLine,foundGo.GetFirstDanglingId());
+                        // take this as the id for the comp
+                        Console.WriteLine($"would rewrite line to {inputLines[comp.id.origLine]}");
+
+
+
+                    } else {
+                        throw new NoFixAvaivableException($"Found go on line {foundGo.id.origLine} for broken id on line {comp.id.origLine} but it has multiple dangling comp refs.");
+                    }
+
 
                 }
 
+
+
             }
 
-            // if id broken
-            // we can enlist something a seperate lookup that says 'rewrite comp refs'
-            // could be on the go?
 
             // if comp file id broken
 
@@ -207,6 +316,7 @@ public class NoFixAvaivableException : Exception {
 
 
 
+        return;
 
 
 
@@ -267,23 +377,7 @@ public class NoFixAvaivableException : Exception {
 
         List<ParsedGo> gos;
         gos = ParsePrefab(inputLines);
-        var allFileIds = new HashSet<string>();
-
-        foreach (var go in gos) {
-            allFileIds.Add(go.fileId);
-            foreach (var compFileId in go.compFileIds) {
-                allFileIds.Add(compFileId.id);
-            }
-        }
-
-        foreach (var prefabTransformRef in prefabTransformRefs) {
-            if (prefabTransformRef != "0" &&
-                (String.IsNullOrEmpty(prefabTransformRef) || !allFileIds.Contains(prefabTransformRef))) {
-                // NOTE no guide yet because I don't know how often that happens
-                throw new NoFixAvaivableException($"{inputPath} has a broken prefab transform ref.\nYou can try grep for\n{prefabTransformRef}\nIn the prefab, then find out which prefab it is and to which transform it should belong. Can poke Ben if you are stuck.");
-            }
-        }
-
+        // var allFileIds = new HashSet<string>();
 
         var compFileIdsInGo = new HashSet<string>();
         foreach (var go in gos) {
@@ -360,10 +454,15 @@ public class NoFixAvaivableException : Exception {
             // // Csole.WriteLine(content);
         }
 
-        string newUniqueFileId() {var fileIdNum = -1337;
-            var x = 0;
-            while (allFileIds.Contains(fileIdNum.ToString()) && x++ < 10000) {
+        string newUniqueFileId() {
+            var fileIdNum = -1337;
+            var safetyCounter = 0;
+            const int maxTries = 100_000;
+            while (allFileIds.Contains(fileIdNum.ToString()) && safetyCounter++ < maxTries) {
                 fileIdNum++;
+            }
+            if (safetyCounter >= maxTries) {
+                throw new PrefabParseException("Failed to get unique id");
             }
             return fileIdNum.ToString();
         }
@@ -570,9 +669,10 @@ public class NoFixAvaivableException : Exception {
     static List<ParsedObj> _ParsePrefab(List<string> lines) {
         var objs = new List<ParsedObj>();
         var comps = new List<ParsedComp>();
-        var insideHeader = true;
+        // var insideHeader = true;
         var currLine = 0;
 
+        var lastGoId = "";
 
         ParsedObj currObj = null;
 
@@ -583,19 +683,20 @@ public class NoFixAvaivableException : Exception {
                     objs.Add(currObj);
                 }
 
-                if (TryParseCompBeginningLine(line, out var typeNum, out var id)) {
+                if (TryParseCompBeginningLine(line, out var type, out var id)) {
                     if (strippedObjBeginningRegex.Match(line).Success) {
                         currObj = new StrippedObj();
 
-                    } else if (typeNum == UnityYamlClassId.GameObject) {
-
+                    } else if (type == UnityYamlClassId.GameObject) {
                         currObj = new ParsedGameObject();
-                    } else if (typeNum == UnityYamlClassId.PrefabInstance) {
+                        lastGoId = id;
+                    } else if (type == UnityYamlClassId.PrefabInstance) {
                         currObj = new ParsedPrefabInstance();
                     } else {
                         currObj = new ParsedComp();
                     }
                     currObj.id = (currLine,id);
+                    currObj.type = type;
 
 
                 }
@@ -603,6 +704,7 @@ public class NoFixAvaivableException : Exception {
             } else if (currObj is ParsedGameObject gameObject && compRefRegex.Match(line).Success) {
 
                 if (gameObject.compRefs == null) {
+                    gameObject.compRefsStart = currLine;
                     gameObject.compRefs = new List<CompRef>();
                 }
                 gameObject.compRefs.Add(new CompRef() { id = compRefRegex.Match(line).Groups[1].ToString(), origLine = currLine });
@@ -617,11 +719,7 @@ public class NoFixAvaivableException : Exception {
 
             }
 
-
-
             currLine++;
-
-
         }
 
         if (currObj != null) {
