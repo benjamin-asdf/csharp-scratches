@@ -32,21 +32,20 @@ public static class Programm {
 
     public static void Main(string[] args) {
         Console.WriteLine("==== Compparser ====\n");
-
-
-
         Environment.CurrentDirectory = Environment.GetEnvironmentVariable("IDLEGAMEDIR");
 
         // CheckPrefab();
-
         // var path = "Assets/LoadGroups/Match3/Match3.prefab";
-        var path  = "/home/benj/idlegame/IdleGame/Assets/LoadGroups/Jackpot/Jackpot.prefab";
-
+        // var path  = "/home/benj/idlegame/IdleGame/Assets/LoadGroups/Jackpot/Jackpot.prefab";
+        // var path = "/home/benj/repos/unity-empty/unity-empty/Assets/Button.prefab";
         // var path = "/home/benj/repos/unity-empty/unity-empty/Assets/BestPrefab.prefab";
 
-        // var path = "/home/benj/repos/unity-empty/unity-empty/Assets/Button.prefab";
+        foreach (var path in File.ReadAllLines("biggest-prefabs")) {
+            using (new PerfClock(path)) {
+                CheckPrefab(path);
+            }
+        }
 
-        CheckPrefab(path);
     }
 
     class ParsedObj {
@@ -91,7 +90,6 @@ public static class Programm {
         // children
         // father
     // }
-    // ParsedPrefabInstance : ParsedObj
 
     class ParsedComp : ParsedObj {
         public (int origLine, string goRef) goRef;
@@ -101,7 +99,7 @@ public static class Programm {
 
     class StrippedObj : ParsedObj {
         // prefab instance
-        // file id + guid}
+        // file id + guid
     }
 
     class ParsedPrefabInstance : ParsedObj {
@@ -131,7 +129,6 @@ public static class Programm {
 
 
         foreach (var item in allObjs) {
-            // Console.WriteLine($"{item.GetType().Name} - {item.type} - {item.id.id}");
 
             if (item is ParsedPrefabInstance prefabInstance) {
 
@@ -175,8 +172,6 @@ public static class Programm {
                 allComps.Add(comp);
             }
 
-
-
         }
 
         foreach (var go in goLookup.Values) {
@@ -193,40 +188,27 @@ public static class Programm {
 
         }
 
+        // -- lookups filled --
 
-
-        // needed to fill lookups first
 
         // these are the known comps that are subscribing to Key gameobject id
-        // var goIdRefs = new Dictionary<string,List<ParsedComp>>();
         var goIdRefs = new Dictionary<string,List<string>>();
 
         foreach (var prefabInstance in allPrefabInstances) {
-
             foreach (var transformRef in prefabInstance.transformRefs) {
-
                 if (transformRef.value != "0" &&
                     (String.IsNullOrEmpty(transformRef.value) || !allFileIds.Contains(transformRef.value))) {
                     throw new NoFixAvaivableException($"{inputPath} has a broken prefab transform ref. At line {transformRef.origLine}, you can try to figure out to which transform it should belong and put the file id.");
                 }
-
-
             }
-
-
         }
-
-
-        // collect all obj ids
-        // includes the override game objects, yeye
-        // foreach com
 
         foreach (var comp in allComps) {
 
             if (String.IsNullOrEmpty(comp.goRef.goRef) || !allFileIds.Contains(comp.goRef.goRef)) {
                 // NOTE: Fix would almost be easy, I would add the id of the enclosing comp.
-                // only issue is the edge case with override comps, they could now point to any 'stripped' go.
-                // There might be some logic of where in the file they are located but I didn't investigate.
+                // Only issue is the edge case with override comps.
+                // Question is if you are looking at an override comp and to which stripped obj are you would be supposed to add this now.
                 throw new NoFixAvaivableException($"Component on line {comp.id.origLine} has a broken go ref.");
             }
 
@@ -242,16 +224,8 @@ public static class Programm {
                     throw new NoFixAvaivableException("Encountered broken file id on a transform. Fix would be complex.");
                 }
 
-                // broken comp ref
-
-                // check the obj
-                // so we have a dictionary with comp id => comp ?
-
                 if (goLookup.TryGetValue(comp.goRef.goRef, out ParsedGameObject foundGo)) {
 
-                    // fix available.
-
-                    // we could add here though
                     // null implies count == 0.
                     if (foundGo.danglingCompRefs == null) {
                         var newId = newUniqueFileId();
@@ -260,15 +234,12 @@ public static class Programm {
                         ApplyFix();
                         return;
 
-
-
                     } else if (foundGo.danglingCompRefs.Count == 1) {
 
                         InsertFileId(lines,comp.id.origLine,foundGo.GetFirstDanglingId());
                         // take this as the id for the comp
                         ApplyFix();
                         return;
-
 
                     } else {
                         throw new NoFixAvaivableException($"Found go on line {foundGo.id.origLine} for broken id on line {comp.id.origLine} but it has multiple dangling comp refs.");
@@ -300,26 +271,6 @@ public static class Programm {
             }
 
         }
-
-        // foreach comp ref
-
-        // if the id is on no component at all
-
-        // a gameobject ref might also be broken
-
-        // if we have a dangling comp ref, we can bring them together,
-        // else we throw
-
-
-
-        // if a compref is broken
-        // get all the comps that are subscribing to this gameobject
-        // already have a list with dangling ones?
-        // I want to get the non intersecting elements
-        // ()
-
-
-        return;
 
 
 
