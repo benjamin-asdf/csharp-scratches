@@ -10,17 +10,10 @@ using System.IO;
 public static class Programm {
 
     public static void Main(string[] args) {
-        Console.WriteLine("==== indexOf ====\n");
-
-        var arr = new int[] { 1 , 2 , 3 };
-
-        var i = Array.IndexOf(arr,10);
-
-        Console.WriteLine(i);
-        Console.WriteLine(Array.IndexOf(null,10));
-
-
-
+        Console.WriteLine("==== DefaultInt ====\n");
+        int i = default;
+        Console.WriteLine(i == 1);
+        Console.WriteLine(i == 0);
     }
 }
 # endif

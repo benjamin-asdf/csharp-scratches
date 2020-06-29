@@ -16,3 +16,37 @@
 
 
 * assume that all prefab instances always appear at the bottom of the prefab
+
+
+
+* understand where the perfomance goes
+* narrow it down more
+* try to optimize that
+
+
+* can we maybe go back to the version with regexes?
+
+
+
+
+
+
+
+
+
+
+
+
+* Perf
+** ReadAllLines - trivial
+*** 469602 /home/benj/idlegame/IdleGame/Assets/LoadGroups/Match3/Match3.prefab
+*** this is trivial
+   around 70 ms
+**
+
+** whole thing on match 3 takes 5 seconds
+**
+
+
+
+*

@@ -3,6 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Text;
+using System.Diagnostics;
+
 
 public static class Programm {
 
@@ -24,10 +27,28 @@ public static class Programm {
 
     public static void Main(string[] args) {
         Console.WriteLine("==== ParseGameObj ====\n");
+        Environment.CurrentDirectory = Environment.GetEnvironmentVariable("IDLEGAMEDIR");
 
-        // var inputPath = "/home/benj/repos/unity-empty/unity-empty/Assets/BestPrefab.prefab";
-        var inputPath = "file";
+        CheckPrefab("Assets/LoadGroups/Match3/Match3.prefab");
+        var sw = Stopwatch.StartNew();
 
+
+
+
+
+
+
+        // foreach (var prefab in File.ReadAllLines("biggest-prefabs")) {
+        //     Console.WriteLine(prefab);
+        //     CheckPrefab(prefab);
+        //     break;
+        // }
+        Console.WriteLine($"ellapsed: {sw.ElapsedMilliseconds}");
+
+    }
+
+    public static void CheckPrefab(string inputPath) {
+        var isDirty = false;
         var inputLines = new List<string>();
         foreach (var line in File.ReadAllLines(inputPath)) {
             inputLines.Add(line);
@@ -43,7 +64,7 @@ public static class Programm {
             }
         }
 
-        Console.WriteLine($"go count: {gos.Count}");
+        // Console.WriteLine($"go count: {gos.Count}");
 
         foreach (var prefabTransformRef in prefabTransformRefs) {
             Console.WriteLine($"prefab t ref: {prefabTransformRef}");
@@ -61,13 +82,14 @@ public static class Programm {
                 var newFileId = newUniqueFileId();
                 allFileIds.Add(newFileId);
                 InsertFileId(go.lines,0,newFileId);
+                isDirty = true;
             }
 
 
             compFileIdsInGo.Clear();
             var compIdsDirty = false;
             foreach (var compFileId in go.compFileIds) {
-                Console.WriteLine($"compFileId: {compFileId} ");
+                // Console.WriteLine($"compFileId: {compFileId} ");
 
                 if (String.IsNullOrEmpty(compFileId.id)) {
                     Console.WriteLine($"have null comp file id.");
@@ -92,28 +114,37 @@ public static class Programm {
             if (compIdsDirty || go.compRefs.Count != compFileIdsInGo.Count) {
                 // do the component fix part.
                 go.ReplaceCompRefs(compFileIdsInGo);
+                isDirty = true;
             }
 
         }
+        Console.WriteLine($"dirty {isDirty}");
 
-        var res = headerPart;
-        foreach (var go in gos) {
-            foreach (var line in go.lines) {
-                res += $"{line}\n";
-            }
-            if (prefabInstancePart != null) {
-                foreach (var line in prefabInstancePart) {
-                    res += $"{line}\n";
+        if (isDirty) {
+            var sb = new StringBuilder();
+            sb.Append(headerPart);
+
+            foreach (var go in gos) {
+                foreach (var line in go.lines) {
+                    sb.AppendLine(line);
+                }
+
+                if (prefabInstancePart != null) {
+                    foreach (var line in prefabInstancePart) {
+                        sb.AppendLine(line);
+                    }
                 }
             }
-        }
 
-        if (res == headerPart) {
-            throw new PrefabParseException("{inputPath} shrank a lot. Something went wrong during parsing.");
+            var content = sb.ToString();
+            if (content == headerPart) {
+                throw new PrefabParseException("{inputPath} shrank a lot. Something went wrong during parsing.");
+            }
+            var outputPath = $"{inputPath}-out";
+            File.WriteAllText(outputPath, content);
+            // Console.WriteLine("-------------- woule rewrite: --------------");
+            // Console.WriteLine(content);
         }
-
-        Console.WriteLine(res);
-        // File.WriteAllText(inputPath, res);
 
         string newUniqueFileId() {var fileIdNum = -1337;
             var x = 0;
@@ -129,8 +160,6 @@ public static class Programm {
     // NOTE we are assuming that prefab instance syntax always appears at the bottom of the prefab, 
     // and that no regular game objects are interspersed
 
-
-    // static HashSet<T> allOrigCom
 
     class ParsedGo {
         public readonly string fileId;
@@ -150,11 +179,13 @@ public static class Programm {
             foreach (var line in inputLines) {
                 lines.Add(line);
                 if (TryParseCompBeginningLine(line, out var typeNum, out var id)) {
-                    Console.WriteLine($"found {typeNum}, --  {id}");
+                    // Console.WriteLine($"found {typeNum}, --  {id}");
                     // gameobject line
                     if ((UnityYamlClassId)typeNum == UnityYamlClassId.GameObject) {
                         fileId = id;
                     } else if (typeNum == UnityYamlClassId.PrefabInstance) {
+                        Console.WriteLine(fileId);
+
                         throw new PrefabParseException("Did not expect to find prefab instance syntax in go part.");
                     } else if ((typeNum == UnityYamlClassId.Transform || typeNum == UnityYamlClassId.RectTransform) && String.IsNullOrEmpty(id)) {
                         throw new NoFixAvaivableException("Encountered broken file id on a transform. Fix would be complex.");
@@ -216,15 +247,23 @@ public static class Programm {
         var insideHeader = true;
         var insidePrefabInstancePart = false;
 
+        var x = 0;
         foreach (var line in lines) {
+            var str = ((float)x++ / (float)lines.Count).ToString("P");
+            Console.WriteLine(str);
+            Console.WriteLine(line);
+
             if (line.StartsWith("--- !u!1 &")) {
                 if (!insideHeader) {
+                    Console.WriteLine("parse first go.");
                     gos.Add(new ParsedGo(goLines));
                     goLines.Clear();
                 }
                 insideHeader = false;
                 goLines.Clear();
+                Console.WriteLine("new go.");
             } else if (line.StartsWith("--- !u!1001 &")) {
+                Console.WriteLine("prefab start.");
                 var match = compBeginningRegex.Match(line);
                 if (String.IsNullOrEmpty(match.Groups[2].ToString())) {
                     throw new NoFixAvaivableException("The file Id of a prefab instance was missing.\nLet Ben know because we can support a fix.");
@@ -258,7 +297,8 @@ public static class Programm {
         if (line.IndexOf("&") < 0) {
             throw new PrefabParseException($"Expected an & in line {index}");
         }
-        ReplaceLine(lines,index,line.Insert(line.IndexOf("&") + 1,fileId));
+
+        lines[index] = line.Insert(line.IndexOf("&") + 1,fileId);
     }
 
     static void ReplaceLine(List<string> lines, int index, string newStr) {

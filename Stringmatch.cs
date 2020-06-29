@@ -10,14 +10,11 @@ using System.IO;
 public static class Programm {
 
     public static void Main(string[] args) {
-        Console.WriteLine("==== indexOf ====\n");
+        Console.WriteLine("==== StringMatch ====\n");
 
-        var arr = new int[] { 1 , 2 , 3 };
+        var str = "--- !u!1001 &153141200930011879";
 
-        var i = Array.IndexOf(arr,10);
-
-        Console.WriteLine(i);
-        Console.WriteLine(Array.IndexOf(null,10));
+        Console.WriteLine(str.StartsWith("--- !u!1001 &"));
 
 
 

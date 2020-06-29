@@ -13,13 +13,15 @@ public static class Programm {
     public static void Main() {
         Console.WriteLine("==== ParsefbJson ====\n");
 
-        var json = File.ReadAllText("/tmp/The Naughty Cult Ltd_/Clash of Streamers/best-response-d2ab9278-e419-4570-9cda-d1ec83e8fc21");
+        var json = File.ReadAllText("/tmp/The Naughty Cult Ltd_/Clash of Streamers/best-response-1b06fddc-4049-4ab8-b6a6-5f5368e25f59");
 
-        Console.WriteLine(json);
+        // Console.WriteLine(json);
         var value = JsonConvert.DeserializeObject(json, typeof(Example));
 
         var data = value as Example;
         Console.WriteLine(data.data[0].Id);
+        Console.WriteLine(data.paging.next);
+        // Console.WriteLine(data.paging.cursors.next);
 
 
     }
@@ -38,6 +40,7 @@ public static class Programm {
 
     public class Paging {
         public Cursors cursors { get; set; }
+        public string next { get; set; }
     }
 
     public class Summary {

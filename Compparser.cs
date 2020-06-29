@@ -1,3 +1,4 @@
+# if false
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -36,15 +37,21 @@ public static class Programm {
 
         // CheckPrefab();
         // var path = "Assets/LoadGroups/Match3/Match3.prefab";
-        // var path  = "/home/benj/idlegame/IdleGame/Assets/LoadGroups/Jackpot/Jackpot.prefab";
+
         // var path = "/home/benj/repos/unity-empty/unity-empty/Assets/Button.prefab";
         // var path = "/home/benj/repos/unity-empty/unity-empty/Assets/BestPrefab.prefab";
+        // var path = "/home/benj/idlegame/IdleGame/Assets/Prefabs/MarketPrefabInception/ItemHolders.prefab";
+        // var path = "/home/benj/idlegame/IdleGame/Assets/LoadGroups/SpecialDeals/WeeklyUnlockBankBonusBar.prefab";
 
-        foreach (var path in File.ReadAllLines("biggest-prefabs")) {
-            using (new PerfClock(path)) {
-                CheckPrefab(path);
-            }
-        }
+        // var path = "/home/benj/idlegame/IdleGame/Assets/Prefabs/ChurchPrefabInception/SlotCanvasChurch.prefab";
+        var path = "/home/benj/idlegame/IdleGame/Assets/Prefabs/RewardPanel/RewardsCanvas.prefab";
+
+
+        // foreach (var path in File.ReadAllLines("biggest-prefabs")) {
+        //     using (new PerfClock(path)) {
+                TrySuggestPrefabFix(path, out _);
+            // }
+        // }
 
     }
 
@@ -113,8 +120,8 @@ public static class Programm {
         public int origLine;
     }
 
-    public static void CheckPrefab(string inputPath) {
-
+    public static bool TrySuggestPrefabFix(string inputPath, out string suggestedContent) {
+        suggestedContent = "";
         var allComps = new List<ParsedComp>();
         var allPrefabInstances = new List<ParsedPrefabInstance>();
         var allFileIds = new HashSet<string>();
@@ -125,10 +132,7 @@ public static class Programm {
             lines.Add(line);
         }
 
-        var allObjs = ParsePrefab(lines);
-
-
-        foreach (var item in allObjs) {
+        foreach (var item in ParsePrefab(lines)) {
 
             if (item is ParsedPrefabInstance prefabInstance) {
 
@@ -231,15 +235,13 @@ public static class Programm {
                         var newId = newUniqueFileId();
                         InsertFileId(lines,comp.id.origLine,newId);
                         foundGo.ApplyCompRefAddition(lines,newId);
-                        ApplyFix();
-                        return;
+                        return ApplyFix(out suggestedContent);
 
                     } else if (foundGo.danglingCompRefs.Count == 1) {
 
                         InsertFileId(lines,comp.id.origLine,foundGo.GetFirstDanglingId());
                         // take this as the id for the comp
-                        ApplyFix();
-                        return;
+                        return ApplyFix(out suggestedContent);
 
                     } else {
                         throw new NoFixAvaivableException($"Found go on line {foundGo.id.origLine} for broken id on line {comp.id.origLine} but it has multiple dangling comp refs.");
@@ -261,8 +263,7 @@ public static class Programm {
             if (goIdRefs.TryGetValue(go.id.id, out var knownGoRefs)) {
                 if (knownGoRefs.Count != go.compRefs.Count || go.hasBrokenCompRefs) {
                     go.ApplyNewCompRefs(lines, knownGoRefs);
-                    ApplyFix();
-                    return;
+                    return ApplyFix(out suggestedContent);
                 }
 
 
@@ -272,6 +273,7 @@ public static class Programm {
 
         }
 
+        return false;
 
 
         // NOTE we only allow 1 fix at a time.
@@ -281,16 +283,22 @@ public static class Programm {
 
 
         // asume lines changed.
-        void ApplyFix() {
+        bool ApplyFix(out string _newContent) {
             var sb = new StringBuilder();
             foreach (var line in lines) {
-                sb.AppendLine(line);
+                // sb.AppendLine(line);
+                if (lines.IndexOf(line) == lines.Count -1) {
+                    sb.Append(line);
+                } else {
+                    sb.AppendLine(line);
+                }
             }
             var outputPath = $"{inputPath}-out";
             File.WriteAllText(outputPath,sb.ToString());
             Console.WriteLine("----------------    would write -------------");
             // Console.WriteLine(sb.ToString());
-
+            _newContent = sb.ToString();
+            return true;
         }
 
 
@@ -332,70 +340,24 @@ public static class Programm {
 
 
 
-    public enum UnityYamlClassId {
-        Object = 0,
-        GameObject = 1,
-        Component = 2,
-        LevelGameManager = 3,
-        Transform = 4,
-        TimeManager = 5,
-        GlobalGameManager = 6,
-        Behaviour = 8,
-        GameManager = 9,
-        AudioManager = 11,
-        InputManager = 13,
-
-        RectTransform = 224,
-
-        PrefabInstance = 1001,
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     static List<ParsedObj> ParsePrefab(List<string> lines) {
         var objs = new List<ParsedObj>();
         var comps = new List<ParsedComp>();
-        // var insideHeader = true;
         var currLine = 0;
-
-        var lastGoId = "";
-
         ParsedObj currObj = null;
 
         foreach (var line in lines) {
+
             if (objBeginningRegex.Match(line).Success) {
                 if (currObj != null) {
                     objs.Add(currObj);
                 }
-
                 if (TryParseCompBeginningLine(line, out var type, out var id)) {
                     if (strippedObjBeginningRegex.Match(line).Success) {
                         currObj = new StrippedObj();
-
                     } else if (type == UnityYamlClassId.GameObject) {
                         currObj = new ParsedGameObject();
-                        lastGoId = id;
                     } else if (type == UnityYamlClassId.PrefabInstance) {
                         currObj = new ParsedPrefabInstance();
                     } else {
@@ -403,8 +365,6 @@ public static class Programm {
                     }
                     currObj.id = (currLine,id);
                     currObj.type = type;
-
-
                 }
 
             } else if (currObj is ParsedGameObject gameObject) {
@@ -418,17 +378,10 @@ public static class Programm {
                 } else if (goNameRegex.Match(line).Success) {
                     gameObject.name = goNameRegex.Match(line).Groups[1].ToString();
                 }
-
-
-
             } else if (currObj is ParsedComp comp && gameObjRefRegex.Match(line).Success) {
-
                 comp.goRef = (currLine,gameObjRefRegex.Match(line).Groups[1].ToString());
-
             } else if (currObj is ParsedPrefabInstance prefabInstance && prefabTransformRegex.Match(line).Success) {
-
                 prefabInstance.transformRefs.Add((currLine,prefabTransformRegex.Match(line).Groups[1].ToString()));
-
             }
 
             currLine++;
@@ -466,4 +419,23 @@ public static class Programm {
     static Regex goNameRegex = new Regex(@"  m_Name: (\w+)");
     static Regex prefabReg = new Regex(@"--- !u!1001 &(-?\d+)?");
 
+
+    public enum UnityYamlClassId {
+        Object = 0,
+        GameObject = 1,
+        Component = 2,
+        LevelGameManager = 3,
+        Transform = 4,
+        TimeManager = 5,
+        GlobalGameManager = 6,
+        Behaviour = 8,
+        GameManager = 9,
+        AudioManager = 11,
+        InputManager = 13,
+
+        RectTransform = 224,
+
+        PrefabInstance = 1001,
+    }
 }
+# endif
