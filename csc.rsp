@@ -1,1 +1,2 @@
 -nowarn:0219
+-r:/home/benj/repos/csharp/roslyn-stuff/AdjConstRewriter/AdjConstRewriter/obj/Release/netcoreapp3.0/AdjConstRewriter.dll

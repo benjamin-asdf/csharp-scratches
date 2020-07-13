@@ -1,10 +1,10 @@
-
+# if false
 using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections;
 using System.Diagnostics;
-using System.IO;
+// using AdjConstRewriter;
 
 public static class Programm {
 
@@ -18,6 +18,7 @@ public static class Programm {
 
         var unusedVar = 10;
 
+        // var hi = new AdjConstRewriter.CommonTypes();
 
         foreach (var item in arr) {
             Console.WriteLine(item);
@@ -25,3 +26,4 @@ public static class Programm {
 
     }
 }
+# endif
