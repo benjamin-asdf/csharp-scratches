@@ -11,8 +11,12 @@ public static class Programm {
 
     public static void Main(string[] args) {
         Console.WriteLine("==== PathDir ====\n");
-            string bestDir = Path.Combine("/best/hee/", "Editor", "AssetTools");
-            Console.WriteLine(Path.Combine(bestDir, "bestFile"));
+
+
+        Console.WriteLine(Path.GetDirectoryName("something/like/htis.cff"));
+
+            // string bestDir = Path.Combine("/best/hee/", "Editor", "AssetTools");
+            // Console.WriteLine(Path.Combine(bestDir, "bestFile"));
 
     }
 }
