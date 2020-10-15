@@ -6,16 +6,14 @@ using System.Collections.Generic;
 using System.Collections;
 using System.Diagnostics;
 using System.IO;
-
+using System.Text.RegularExpressions;
 
 public static class Programm {
 
     public static void Main(string[] args) {
-        Console.WriteLine("==== hi ====\n");
+        Console.WriteLine("==== RegexNotChar ====\n");
 
-
-        File.WriteAllText("best","");
-
+        // new Regex("");
 
 
     }

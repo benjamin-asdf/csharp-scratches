@@ -7,14 +7,22 @@ using System.Collections;
 using System.Diagnostics;
 using System.IO;
 
-
 public static class Programm {
 
     public static void Main(string[] args) {
-        Console.WriteLine("==== hi ====\n");
+        Console.WriteLine("==== Assert ====\n");
 
+        bool myCond = false;
 
-        File.WriteAllText("best","");
+        Debug.Assert(myCond,"It was not the cond.");
+
+        // Debug.Assert(false);
+
+        Debug.Assert(true, "f");
+
+        if (false) {
+
+        }
 
 
 

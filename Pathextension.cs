@@ -1,5 +1,4 @@
 # if false
-
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -13,6 +12,11 @@ public static class Programm {
         Console.WriteLine("==== PathExtension ====\n");
 
         Console.WriteLine(Path.GetExtension("hee.prefab"));
+
+        if (Path.GetExtension("heee.prefab") == "meta"
+
+            )
+
 
     }
 }

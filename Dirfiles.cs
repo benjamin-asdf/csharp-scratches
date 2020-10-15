@@ -7,16 +7,14 @@ using System.Collections;
 using System.Diagnostics;
 using System.IO;
 
-
 public static class Programm {
 
     public static void Main(string[] args) {
-        Console.WriteLine("==== hi ====\n");
+        Console.WriteLine("==== DirFiles ====\n");
 
-
-        File.WriteAllText("best","");
-
-
+        foreach (var f in Directory.GetFiles("/home/benj/repos/csharp/csharp-scratches/", "*cs")) {
+            Console.WriteLine(f);
+        }
 
     }
 }
